@@ -3,3 +3,8 @@ pandas
 sqlalchemy
 pyodbc
 python-docx
+zeep==4.2.1
+python-dateutil==2.9.0.post0
+requests>=2.31.0
+lxml>=4.9.3
+openpyxl

@@ -1,0 +1,158 @@
+import os
+from datetime import datetime
+from docx import Document
+from architecture.utils.path_utils import generate_download_path
+
+# Mapa de meses en español (evitamos depender del locale del sistema)
+SPANISH_MONTHS = {
+    1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+    5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+    9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+}
+
+class DocumentProcessor:
+    """
+    Genera cartas (Perentoria / Incumplimiento) desde plantillas Word
+    y datos integrados (dict).
+    """
+
+    def __init__(self):
+        self.template_dir = os.path.join(os.path.dirname(__file__), "..", "document_templates")
+
+    # -----------------------------
+    # Util
+    # -----------------------------
+    def _get_template_path(self, letter_type: str) -> str:
+        templates = {
+            "perentoria": "Carta_Perentoria.docx",
+            "incumplimiento": "Carta_Incumplimiento_Informe.docx"
+        }
+        file_name = templates.get(letter_type.lower())
+        if not file_name:
+            raise ValueError(f"Tipo de carta no reconocido: {letter_type}")
+        return os.path.join(self.template_dir, file_name)
+
+    def _fmt_fecha(self, fecha: datetime) -> tuple[str, str, int]:
+        """Devuelve (día, mes_en_español, año)"""
+        return str(fecha.day), SPANISH_MONTHS[fecha.month], fecha.year
+
+    def _replace_everywhere(self, doc: Document, replacements: dict):
+        """
+        Reemplazo robusto que funciona aunque el marcador esté fragmentado en runs.
+        Nota: reescribe el texto del párrafo/celda (se puede perder formato dentro del marcador).
+        """
+
+        # Párrafos
+        for p in doc.paragraphs:
+            original = p.text
+            new_text = original
+            for k, v in replacements.items():
+                if k in new_text:
+                    new_text = new_text.replace(k, str(v))
+            if new_text != original:
+                # Limpia runs y deja un solo run con el texto reemplazado
+                for r in p.runs:
+                    r.clear()  # limpia contenido del run
+                if p.runs:
+                    p.runs[0].text = new_text
+                else:
+                    p.add_run(new_text)
+
+        # Tablas
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    original = cell.text
+                    new_text = original
+                    for k, v in replacements.items():
+                        if k in new_text:
+                            new_text = new_text.replace(k, str(v))
+                    if new_text != original:
+                        # Reemplazo básico: limpiar y escribir plano
+                        # (Word vuelve a componer internamente los párrafos)
+                        for para in cell.paragraphs:
+                            for r in para.runs:
+                                r.clear()
+                        if cell.paragraphs:
+                            cell.paragraphs[0].runs[0].text = new_text
+                        else:
+                            cell.add_paragraph(new_text)
+
+    # -----------------------------
+    # Público
+    # -----------------------------
+    def generate_letter(self, data: dict, report_type: str, letter_type: str) -> str:
+        # 1) Selección de informe
+        reports = data.get("reports", [])
+        print("🔍 report_type recibido:", report_type)
+        print("📄 tipos disponibles:", [r.get("reportType") for r in reports])
+        report = next(
+                (
+                    r for r in reports
+                    if r.get("reportType", "").strip().upper() == report_type.strip().upper()
+                ),
+                None
+            )
+        if not report:
+            raise ValueError(f"No se encontró el informe '{report_type}' en los datos del proyecto.")
+
+        # 2) Carga de plantilla
+        template_path = self._get_template_path(letter_type)
+        doc = Document(template_path)
+
+        # 3) Datos
+        project = data["projectinfo"]
+
+        # Fechas (informe y resolución)
+        fecha_entrega = datetime.strptime(report["scheduledDeliveryDate"], "%d/%m/%Y")
+        fecha_resol   = datetime.strptime(project["resolutionDate"], "%d/%m/%Y")
+
+        dia_inf, mes_inf, anio_inf = self._fmt_fecha(fecha_entrega)
+        dia_res, mes_res, anio_res = self._fmt_fecha(fecha_resol)
+
+        # 🔍 Lógica jerárquica para determinar el correo de contacto
+        direccion = (
+            project.get("legalRepresentativeEmail")
+            or project.get("beneficiaryEmail")
+            or project.get("directorEmail")
+            or "SIN CORREO REGISTRADO"
+        )
+        direccion = direccion.strip() if isinstance(direccion, str) else "SIN CORREO REGISTRADO"
+
+        # 4) Replacements
+        replacements = {
+            # Identificación
+            "[NOMBRE INFORME]": report["reportType"],
+            "[NOMBRE DE PROYECTO]": project["projectName"].strip(),
+            "[CÓDIGO]": project["projectCode"],
+
+            # Destinatario
+            "[NOMBRE BENEFICIARIA]": project["beneficiaryName"].strip(),
+            "[nombre representante]": project["legalRepresentative"].strip(),  # si la plantilla lo usa
+            "[DIRECCIÓN]": direccion,
+
+            # Fechas del informe
+            "[DÍA]": dia_inf,
+            "[MES]": mes_inf,
+            "[AÑO]": anio_inf,
+
+            # Fechas de la resolución
+            "[DÍA RESOL]": dia_res,
+            "[MES RESOL]": mes_res,
+            "[AÑO RESOL]": anio_res,
+
+            # Resolución y firmas
+            "[número]": int(project["resolutionNumber"]),
+            "[SUBDIRECTOR]": project.get("subdirector", "").strip(),
+            "[SUBDIRECCION]": project.get("subdirection", "").strip(),
+            "[EJECUTIVO TÉCNICO]": project.get("technicalExecutiveName", "").strip()
+        }
+
+        # 5) Reemplazo robusto
+        self._replace_everywhere(doc, replacements)
+
+        # 6) Exportación
+        output_path = generate_download_path(project["projectCode"], letter_type)
+        doc.save(output_path)
+        print(f"✅ Carta generada exitosamente: {output_path}")
+        return output_path
