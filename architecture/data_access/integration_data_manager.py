@@ -1,7 +1,6 @@
 from architecture.data_access.soap_data_manager import SoapDataManager
 from architecture.data_access.excel_data_manager import ExcelDataManager
 from architecture.utils.format_utils import FormatUtils
-from architecture.reference.org_structure import OrgStructure
 import json
 
 """
@@ -44,13 +43,6 @@ class IntegrationDataManager:
             for k, v in project_info.items()
         }
 
-        # 4️⃣.1️⃣ Enriquecer con datos de Subdirección/Subdirector
-        executive_name = project_info.get("Nombre Ejecutivo Técnico")
-        org_data = OrgStructure.get_subdirection_for_executive(executive_name)
-
-        if org_data:
-            # Fusiona dinámicamente todos los campos definidos en org_structure.json
-            project_info.update(org_data)
 
         # 5️⃣ Normalizar fechas en reports
         reports = soap_data.get("reports", [])

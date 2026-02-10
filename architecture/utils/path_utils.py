@@ -100,39 +100,7 @@ class PathUtils:
     def get_assets_folder():
         """Devuelve la ruta de la carpeta de recursos (assets) del proyecto."""
         return os.path.join(PathUtils.get_base_dir(), "assets")
-    
-    # ─────────────────────────────────────────────
-    # 🛠️ JSON con datos de las subdirecciones del comité
-    # ─────────────────────────────────────────────
 
-    @staticmethod
-    def get_org_structure_json_path():
-        """
-        Devuelve la ruta del archivo org_structure.json ubicado junto al Excel institucional.
-        Si no existe, levanta una advertencia o permite seleccionarlo manualmente.
-        """
-        excel_path = PathUtils.get_cartasperentorias_excel_path()
-        base_folder = os.path.dirname(excel_path)
-        json_path = os.path.join(base_folder, "org_structure.json")
-
-        if os.path.exists(json_path):
-            return json_path
-
-        # Permite al usuario seleccionar manualmente si no se encuentra
-        from tkinter import filedialog, messagebox
-        respuesta = messagebox.askyesno(
-            "Archivo org_structure.json no encontrado",
-            f"No se encontró el archivo en:\n\n{json_path}\n\n¿Deseas buscarlo manualmente?"
-        )
-        if respuesta:
-            path = filedialog.askopenfilename(
-                title="Seleccionar archivo org_structure.json",
-                filetypes=[("JSON files", "*.json")]
-            )
-            if path:
-                return path
-
-        raise FileNotFoundError("No se pudo localizar el archivo org_structure.json.")
 
 # ─────────────────────────────────────────────
 # 📝 RUTAS DE DESCARGA DE CARTAS GENERADAS

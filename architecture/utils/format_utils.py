@@ -206,6 +206,10 @@ class FormatUtils:
             "pro_resolucion": "resolutionNumber",
             "pro_resolucion_fecha": "resolutionDate",
 
+            # Org Structure (from Excel)
+            "subdireccion": "subdirection",
+            "subdirector": "subdirector",
+
             # Reports
             "fecha entrega programada": "scheduledDeliveryDate",
             "periodo informe": "reportPeriod",

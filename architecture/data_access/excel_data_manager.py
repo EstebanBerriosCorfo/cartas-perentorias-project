@@ -44,6 +44,8 @@ class ExcelDataManager:
             "Código",
             "Código Sistema",
             "Nombre Ejecutivo Técnico",
+            "Subdirección",
+            "Subdirector",
             "Email representante legal",
             "Beneficiario correo",
             "Director correo",

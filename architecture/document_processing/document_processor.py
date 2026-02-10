@@ -142,7 +142,7 @@ class DocumentProcessor:
             "[AÑO RESOL]": anio_res,
 
             # Resolución y firmas
-            "[número]": int(project["resolutionNumber"]),
+            "[NÚMERO]": int(project["resolutionNumber"]),
             "[SUBDIRECTOR]": project.get("subdirector", "").strip(),
             "[SUBDIRECCION]": project.get("subdirection", "").strip(),
             "[EJECUTIVO TÉCNICO]": project.get("technicalExecutiveName", "").strip()
