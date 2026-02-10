@@ -61,12 +61,19 @@ def _obtener_informes_disponibles(reports: list) -> list:
         if not isinstance(report, dict):
             continue
 
-        tipo = report.get("reportType", "").strip().title()
-        fecha = report.get("scheduledDeliveryDate")
+        tipo = report.get("reportType", "").strip()
+        fecha = report.get("scheduledDeliveryDate", "")
+        if isinstance(fecha, str):
+            fecha = fecha.strip()
+        else:
+            fecha = ""
 
         # Si existe un tipo de informe, se muestra; podrías filtrar más adelante por estado
         if tipo:
-            informes_disponibles.append(tipo)
+            if fecha:
+                informes_disponibles.append(f"{tipo} - {fecha}")
+            else:
+                informes_disponibles.append(f"{tipo} - SIN FECHA")
 
     if not informes_disponibles:
         informes_disponibles = ["No hay informes disponibles"]

@@ -118,15 +118,30 @@ class CartaPerentoriaApp(ctk.CTk):
             messagebox.showerror("Error", f"No se pudo obtener información del proyecto.\n\n{e}")
 
 
+    def _parse_informe_selection(self, selection: str) -> tuple[str, str | None]:
+        if " - " in selection:
+            tipo, fecha = selection.split(" - ", 1)
+            fecha = fecha.strip()
+            if fecha.upper() == "SIN FECHA":
+                fecha = None
+            return tipo.strip(), fecha
+        return selection.strip(), None
+
     def generar_documento(self):
         accion = self.accion_combo.get().strip()
-        informe = self.informe_combo.get().strip().upper()
+        informe_seleccion = self.informe_combo.get().strip()
         codigo = self.codigo_entry.get().strip()
 
-        if not codigo or not accion or not informe:
+        if not codigo or not accion or not informe_seleccion:
             messagebox.showwarning(
                 "Atención",
                 "Debe ingresar el código, seleccionar acción e informe asociado."
+            )
+            return
+        if informe_seleccion.strip().upper().startswith("NO HAY INFORMES"):
+            messagebox.showwarning(
+                "Atención",
+                "No hay informes disponibles para generar el documento."
             )
             return
 
@@ -155,9 +170,10 @@ class CartaPerentoriaApp(ctk.CTk):
             # ─────────────────────────────────────────────
 
             # 🔍 Debug opcional
+            informe, fecha_informe = self._parse_informe_selection(informe_seleccion)
             print(f"📄 Código proyecto: {codigo}")
             print(f"🧾 Tipo carta: {tipo_carta}")
-            print(f"📨 Informe seleccionado: {informe}")
+            print(f"📨 Informe seleccionado: {informe} ({fecha_informe or 'SIN FECHA'})")
             print(f"📋 Informes disponibles en data: {[r.get('reportType') for r in data.get('reports', [])]}")
 
             # 🔹 Llamar al generador
@@ -165,6 +181,7 @@ class CartaPerentoriaApp(ctk.CTk):
                 output_path = processor.generate_letter(
                     data=data,
                     report_type=informe,
+                    report_date=fecha_informe,
                     letter_type=tipo_carta
                 )
             except ValueError as err:
@@ -172,14 +189,16 @@ class CartaPerentoriaApp(ctk.CTk):
                 reports = data.get("reports", [])
                 if reports:
                     default_report = reports[0].get("reportType", "").strip()
+                    default_date = reports[0].get("scheduledDeliveryDate")
                     messagebox.showwarning(
                         "Aviso",
-                        f"No se encontró el informe '{informe}'. "
-                        f"Se generará la carta utilizando '{default_report}'."
+                        f"No se encontró el informe '{informe_seleccion}'. "
+                        f"Se generará la carta utilizando '{default_report} - {default_date or 'SIN FECHA'}'."
                     )
                     output_path = processor.generate_letter(
                         data=data,
                         report_type=default_report,
+                        report_date=default_date,
                         letter_type=tipo_carta
                     )
                 else:

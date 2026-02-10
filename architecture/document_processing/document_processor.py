@@ -36,6 +36,41 @@ class DocumentProcessor:
         """Devuelve (día, mes_en_español, año)"""
         return str(fecha.day), SPANISH_MONTHS[fecha.month], fecha.year
 
+    def _parse_date_for_sort(self, value: str) -> datetime:
+        if not value:
+            return datetime.max
+        try:
+            return datetime.strptime(str(value).strip(), "%d/%m/%Y")
+        except Exception:
+            return datetime.max
+
+    def _build_tipo_informe(self, reports: list, report: dict) -> str:
+        report_type = str(report.get("reportType", "")).strip()
+        if not report_type:
+            return ""
+
+        def _norm_tipo(r):
+            return str(r.get("reportType", "")).strip().upper()
+
+        same_type = [r for r in reports if _norm_tipo(r) == report_type.upper()]
+        if len(same_type) <= 1:
+            return report_type
+
+        same_type_sorted = sorted(
+            same_type,
+            key=lambda r: self._parse_date_for_sort(r.get("scheduledDeliveryDate", ""))
+        )
+        sel_date = str(report.get("scheduledDeliveryDate", "")).strip()
+        index = None
+        for i, r in enumerate(same_type_sorted, start=1):
+            if str(r.get("scheduledDeliveryDate", "")).strip() == sel_date:
+                index = i
+                break
+        if index is None:
+            index = 1
+
+        return f"{report_type} {index}"
+
     def _replace_everywhere(self, doc: Document, replacements: dict):
         """
         Reemplazo robusto que funciona aunque el marcador esté fragmentado en runs.
@@ -81,12 +116,23 @@ class DocumentProcessor:
     # -----------------------------
     # Público
     # -----------------------------
-    def generate_letter(self, data: dict, report_type: str, letter_type: str) -> str:
+    def generate_letter(self, data: dict, report_type: str, report_date: str | None, letter_type: str) -> str:
         # 1) Selección de informe
         reports = data.get("reports", [])
         print("🔍 report_type recibido:", report_type)
+        print("🗓️ report_date recibido:", report_date)
         print("📄 tipos disponibles:", [r.get("reportType") for r in reports])
-        report = next(
+        if report_date:
+            report = next(
+                (
+                    r for r in reports
+                    if r.get("reportType", "").strip().upper() == report_type.strip().upper()
+                    and str(r.get("scheduledDeliveryDate", "")).strip() == str(report_date).strip()
+                ),
+                None
+            )
+        else:
+            report = next(
                 (
                     r for r in reports
                     if r.get("reportType", "").strip().upper() == report_type.strip().upper()
@@ -94,7 +140,8 @@ class DocumentProcessor:
                 None
             )
         if not report:
-            raise ValueError(f"No se encontró el informe '{report_type}' en los datos del proyecto.")
+            detalle_fecha = f" con fecha {report_date}" if report_date else ""
+            raise ValueError(f"No se encontró el informe '{report_type}'{detalle_fecha} en los datos del proyecto.")
 
         # 2) Carga de plantilla
         template_path = self._get_template_path(letter_type)
@@ -120,9 +167,11 @@ class DocumentProcessor:
         direccion = direccion.strip() if isinstance(direccion, str) else "SIN CORREO REGISTRADO"
 
         # 4) Replacements
+        tipo_informe = self._build_tipo_informe(reports, report)
         replacements = {
             # Identificación
             "[NOMBRE INFORME]": report["reportType"],
+            "[TIPO INFORME]": tipo_informe,
             "[NOMBRE DE PROYECTO]": project["projectName"].strip(),
             "[CÓDIGO]": project["projectCode"],
 
